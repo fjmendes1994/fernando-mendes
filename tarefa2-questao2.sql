@@ -51,6 +51,20 @@ REFERENCES PESSOA ('ID_PESSOA') ON UPDATE NO ACTION ON DELETE NO ACTION,
 CONSTRAINT 'FK_RECEITA' FOREIGN KEY ('ID_RECEITA')
 REFERENCES RECEITA ('ID_RECEITA') ON UPDATE NO ACTION ON DELETE NO ACTION
 );
+--> insere uma pessoa
+
+insert into pessoa values
+  (1, 'fernando', 'fjmendes', '12345678');
+
+--> insere 3 ingredientes
+
+insert into ingrediente values
+  (1, 'arroz', 'g'),
+  (2, 'feijao', 'g'),
+  (3, 'bife', 'u');
+
+
+select insere_receita(1, 2009-04-04, 'receita', 'cozinhar', {'arroz', 'feijao', 'bife'}, {1.0, 2.0, 3.0});
 
 --> função que insere uma nova receita
 CREATE OR REPLACE FUNCTION insere_receita(id_pessoa_receita integer, data_envio_receita date, titulo_receita varchar, modo_preparo_receita varchar, ingredientes_receita varchar[], quantidade_receita float[]) RETURNS float AS $$
@@ -59,8 +73,8 @@ DECLARE
     contador integer;
     receita integer;
 BEGIN
-    insert into receita(DATA_ENVIO, MODO_PREPARO, TITULO, ID_PESSOA) values
-      (id_pessoa_receita, data_envio_receita, titulo_receita, modo_preparo_receita);
+    insert into receita(ID_RECEITA, DATA_ENVIO, TITULO, MODO_PREPARO, ID_PESSOA) values
+      (1, data_envio_receita, titulo_receita, modo_preparo_receita, id_pessoa_receita);
 
     select array_length(ingredientes_receita, 1) into numero_ingredientes;
 
@@ -71,25 +85,29 @@ BEGIN
     and ID_PESSOA = id_pessoa_receita;
 
     contador := 0;
-
-    FOREACH numero_ingredientes SLICE 1 IN ARRAY ingredientes_receita
+    FOR i IN 1 .. array_upper(ingredientes_receita, 1)
     LOOP
-        select insere_receita_ingrediente(receita, ingredientes_receita[contador], quantidade_receita[contador]);
+      PERFORM insere_receita_ingrediente(receita, ingredientes_receita[i], quantidade_receita[i]);
     END LOOP;
+    RETURN 1.0;
 END;
 $$ LANGUAGE plpgsql;
 
 --> função auxiliar para inserir um ingrediente em um receita ( devera ser chamada na função acima dentro de um for)
-CREATE OR REPLACE FUNCTION insere_receita_ingrediente(receita integer, ingrediente varchar, medida float) RETURNS integer AS $$
+CREATE OR REPLACE FUNCTION insere_receita_ingrediente(receita integer, ingrediente_desc varchar, medida float) RETURNS integer AS $$
 DECLARE
-    id_ingrediente integer;
+    id_ingrediente_receita integer;
 BEGIN
-    select ID_INGREDIENTE from INGREDIENTE into id_ingrediente
-    where ingrediente =  INGREDIENTE.DESCRICAO;
+    select ID_INGREDIENTE from INGREDIENTE into id_ingrediente_receita
+    where INGREDIENTE.DESCRICAO =  ingrediente_desc;
 
     insert into RECEITA_INGREDIENTE(ID_RECEITA, ID_INGREDIENTE, QUANTIDADE) values
-      (receita, id_ingrediente, medida);
+      (receita, id_ingrediente_receita, medida);
 
     RETURN 1;
 END;
 $$ LANGUAGE plpgsql;
+
+--> testa função criada
+
+select insere_receita(1, current_date, 'receita', 'cozinhar', ARRAY['arroz', 'feijao', 'bife'], ARRAY[2.0, 1.0, 1.0]);
